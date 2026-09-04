@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Research Agent — Multi-agent Research Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#10121a;
+    --panel:#171a26;
+    --panel-raised:#1e2233;
+    --line:#2b3046;
+    --text:#e9e9f1;
+    --text-muted:#8d92ab;
+    --amber:#e8a33d;
+    --amber-dim:#5a4423;
+    --blue:#7fb3e0;
+    --green:#7fbf8f;
+    --red:#d97878;
+    --radius:3px;
+    --serif: 'Fraunces', serif;
+    --sans: 'IBM Plex Sans', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text);
+    font-family:var(--sans);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--amber);}
+  ::selection{background:var(--amber);color:#191308;}
+  :focus-visible{outline:2px solid var(--amber); outline-offset:2px;}
+
+  .wrap{max-width:980px;margin:0 auto;padding:0 28px;}
+
+  /* ---------- header ---------- */
+  header.top{
+    border-bottom:1px solid var(--line);
+    padding:20px 0;
+  }
+  .top-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand-mark{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--amber);
+    border:1px solid var(--amber-dim);
+    padding:3px 7px;
+    border-radius:var(--radius);
+    letter-spacing:.02em;
+  }
+  .brand-name{font-family:var(--serif); font-weight:600; font-size:19px;}
+  .top-links{display:flex; gap:22px; font-size:13.5px;}
+  .top-links a{color:var(--text-muted); text-decoration:none;}
+  .top-links a:hover{color:var(--text);}
+
+  /* ---------- hero ---------- */
+  .hero{padding:64px 0 44px;}
+  .hero h1{
+    font-family:var(--serif);
+    font-weight:600;
+    font-size:clamp(34px, 5vw, 54px);
+    line-height:1.08;
+    margin:0 0 18px;
+    max-width:14ch;
+  }
+  .hero p.lede{
+    color:var(--text-muted);
+    font-size:17px;
+    max-width:56ch;
+    margin:0 0 40px;
+  }
+
+  .console{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    overflow:hidden;
+  }
+  .console-bar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 16px;
+    border-bottom:1px solid var(--line);
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--text-muted);
+  }
+  .console-bar .dots{display:flex; gap:6px;}
+  .console-bar .dots span{width:8px;height:8px;border-radius:50%;background:var(--line);}
+
+  .query-row{
+    display:flex; gap:0; padding:18px;
+    flex-wrap:wrap;
+  }
+  .query-row input[type=text]{
+    flex:1 1 320px;
+    background:var(--ink);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:15px;
+    padding:13px 14px;
+    border-radius:var(--radius) 0 0 var(--radius);
+    min-width:220px;
+  }
+  .query-row input[type=text]:focus{border-color:var(--amber);}
+  .run-btn{
+    background:var(--amber);
+    color:#191308;
+    border:none;
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:15px;
+    padding:0 22px;
+    border-radius:0 var(--radius) var(--radius) 0;
+    cursor:pointer;
+    transition:background .15s ease;
+  }
+  .run-btn:hover{background:#f0b458;}
+  .run-btn:disabled{background:var(--panel-raised); color:var(--text-muted); cursor:not-allowed;}
+
+  .chips{display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 18px;}
+  .chip{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--text-muted);
+    border:1px solid var(--line);
+    background:transparent;
+    padding:6px 11px;
+    border-radius:20px;
+    cursor:pointer;
+  }
+  .chip:hover{border-color:var(--amber); color:var(--amber);}
+
+  /* ---------- pipeline ---------- */
+  .pipeline{padding:20px 0 10px;}
+  .section-label{
+    font-family:var(--mono); font-size:12px; letter-spacing:.03em;
+    color:var(--text-muted); margin-bottom:18px;
+  }
+  .stage-track{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:0;
+    position:relative;
+    margin-bottom:22px;
+  }
+  .stage-track::before{
+    content:"";
+    position:absolute;
+    top:19px; left:12.5%; right:12.5%;
+    height:1px;
+    background:var(--line);
+    z-index:0;
+  }
+  .stage{
+    position:relative; z-index:1;
+    display:flex; flex-direction:column; align-items:center;
+    text-align:center;
+    padding:0 8px;
+  }
+  .stage-dot{
+    width:38px;height:38px;border-radius:50%;
+    background:var(--panel);
+    border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:12px;
+    font-family:var(--mono); font-size:13px; color:var(--text-muted);
+    transition:border-color .2s, color .2s, background .2s;
+  }
+  .stage.active .stage-dot{
+    border-color:var(--amber); color:var(--amber);
+    animation:pulse 1.1s ease-in-out infinite;
+  }
+  .stage.done .stage-dot{
+    border-color:var(--green); color:var(--green); background:rgba(127,191,143,.08);
+  }
+  @keyframes pulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(232,163,61,.35);}
+    50%{box-shadow:0 0 0 6px rgba(232,163,61,0);}
+  }
+  .stage-title{font-size:13.5px; font-weight:600;}
+  .stage-sub{font-size:11.5px; color:var(--text-muted); font-family:var(--mono); margin-top:2px;}
+
+  .log{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--text-muted);
+    padding:14px 16px;
+    height:120px;
+    overflow-y:auto;
+    display:none;
+  }
+  .log.visible{display:block;}
+  .log div{margin-bottom:4px; white-space:pre-wrap;}
+  .log .ok{color:var(--green);}
+  .log .now{color:var(--amber);}
+
+  /* ---------- results ---------- */
+  .results{padding:44px 0 70px; display:none;}
+  .results.visible{display:block; animation:fadein .4s ease;}
+  @keyframes fadein{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+  .tabs{display:flex; gap:2px; border-bottom:1px solid var(--line); margin-bottom:24px;}
+  .tab-btn{
+    background:none; border:none; color:var(--text-muted);
+    font-family:var(--sans); font-size:14px; font-weight:500;
+    padding:12px 4px; margin-right:26px;
+    cursor:pointer; border-bottom:2px solid transparent;
+  }
+  .tab-btn.active{color:var(--text); border-bottom-color:var(--amber);}
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .report h3{font-family:var(--serif); font-size:22px; margin:26px 0 10px;}
+  .report h3:first-child{margin-top:0;}
+  .report p{color:#cfd1de; font-size:15px;}
+  .report ul{color:#cfd1de; font-size:15px; padding-left:20px;}
+  .report .sources{font-family:var(--mono); font-size:12.5px; color:var(--text-muted);}
+  .report .sources li{margin-bottom:6px; word-break:break-all;}
+
+  .download-btn{
+    display:inline-block; margin-top:18px;
+    background:none; border:1px solid var(--line); color:var(--text);
+    font-family:var(--mono); font-size:12.5px;
+    padding:9px 14px; border-radius:var(--radius); cursor:pointer;
+  }
+  .download-btn:hover{border-color:var(--amber); color:var(--amber);}
+
+  .critic-top{display:flex; align-items:center; gap:22px; margin-bottom:26px; flex-wrap:wrap;}
+  .score-badge{
+    width:84px;height:84px;border-radius:50%;
+    border:2px solid var(--amber);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-family:var(--serif); font-weight:600;
+  }
+  .score-badge .num{font-size:26px; line-height:1;}
+  .score-badge .den{font-size:10px; color:var(--text-muted); font-family:var(--mono);}
+  .verdict{font-family:var(--serif); font-size:17px; font-style:italic; color:#dcdde6; max-width:46ch;}
+
+  .critic-cols{display:grid; grid-template-columns:1fr 1fr; gap:24px;}
+  @media (max-width:640px){.critic-cols{grid-template-columns:1fr;}}
+  .critic-cols h4{font-size:13px; font-family:var(--mono); color:var(--text-muted); margin:0 0 10px; letter-spacing:.02em;}
+  .critic-cols ul{margin:0; padding-left:18px; font-size:14.5px; color:#cfd1de;}
+  .critic-cols li{margin-bottom:8px;}
+  .critic-cols.strengths h4{color:var(--green);}
+  .critic-cols.improve h4{color:var(--amber);}
+
+  .raw-item{
+    border:1px solid var(--line); border-radius:6px; padding:16px; margin-bottom:12px;
+    background:var(--panel);
+  }
+  .raw-item .rurl{font-family:var(--mono); font-size:11.5px; color:var(--blue); margin-bottom:6px; word-break:break-all;}
+  .raw-item h5{margin:0 0 6px; font-size:15px;}
+  .raw-item p{margin:0; font-size:13.5px; color:var(--text-muted);}
+
+  .demo-note{
+    font-family:var(--mono); font-size:11.5px; color:var(--text-muted);
+    border-left:2px solid var(--amber-dim); padding-left:10px; margin:26px 0;
+  }
+
+  /* ---------- footer ---------- */
+  footer{border-top:1px solid var(--line); padding:32px 0 48px;}
+  .stack-row{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px;}
+  .stack-chip{
+    font-family:var(--mono); font-size:11.5px; color:var(--text-muted);
+    border:1px solid var(--line); padding:5px 10px; border-radius:20px;
+  }
+  footer p{color:var(--text-muted); font-size:13px; max-width:64ch;}
+  footer code{color:var(--blue); font-family:var(--mono);}
+
+  @media (max-width:620px){
+    .stage-title{font-size:11.5px;}
+    .stage-sub{display:none;}
+    .query-row{flex-direction:column;}
+    .query-row input[type=text]{border-radius:var(--radius); border-bottom:none;}
+    .run-btn{border-radius:var(--radius); padding:13px; margin-top:8px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-row">
+    <div class="brand">
+      <span class="brand-mark">4-AGENT</span>
+      <span class="brand-name">AI Research Agent</span>
+    </div>
+    <nav class="top-links">
+      <a href="#pipeline">Pipeline</a>
+      <a href="#results">Results</a>
+      <a href="https://github.com/ArshTiwari07/Multi-agent-research-assistant" target="_blank" rel="noopener">GitHub ↗</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Give it a topic. Watch four agents research it.</h1>
+    <p class="lede">Search, Reader, Writer, and Critic run in sequence — pulling sources, scraping content, drafting a structured report, and scoring their own work. Type a topic below to see the pipeline move.</p>
+
+    <div class="console">
+      <div class="console-bar">
+        <span>research_pipeline.run(topic)</span>
+        <div class="dots"><span></span><span></span><span></span></div>
+      </div>
+      <div class="query-row">
+        <input type="text" id="topicInput" placeholder="e.g. the environmental impact of lithium mining" maxlength="120">
+        <button class="run-btn" id="runBtn">Run research</button>
+      </div>
+      <div class="chips" id="chipRow">
+        <button class="chip" data-topic="the environmental impact of lithium mining">lithium mining impact</button>
+        <button class="chip" data-topic="how mRNA vaccines are manufactured">mRNA vaccine manufacturing</button>
+        <button class="chip" data-topic="the economics of vertical farming">vertical farming economics</button>
+        <button class="chip" data-topic="open-source LLM licensing models">open-source LLM licensing</button>
+      </div>
+      <div class="log" id="log" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+
+<section class="pipeline" id="pipeline">
+  <div class="wrap">
+    <div class="section-label">// PIPELINE — four steps, run in order</div>
+    <div class="stage-track" id="stageTrack">
+      <div class="stage" data-stage="0">
+        <div class="stage-dot">1</div>
+        <div class="stage-title">Search</div>
+        <div class="stage-sub">queries the web</div>
+      </div>
+      <div class="stage" data-stage="1">
+        <div class="stage-dot">2</div>
+        <div class="stage-title">Reader</div>
+        <div class="stage-sub">scrapes the source</div>
+      </div>
+      <div class="stage" data-stage="2">
+        <div class="stage-dot">3</div>
+        <div class="stage-title">Writer</div>
+        <div class="stage-sub">drafts the report</div>
+      </div>
+      <div class="stage" data-stage="3">
+        <div class="stage-dot">4</div>
+        <div class="stage-title">Critic</div>
+        <div class="stage-sub">scores the draft</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="results" id="results">
+  <div class="wrap">
+    <div class="tabs">
+      <button class="tab-btn active" data-panel="reportPanel">Full Report</button>
+      <button class="tab-btn" data-panel="criticPanel">Critic Review</button>
+      <button class="tab-btn" data-panel="rawPanel">Raw Research</button>
+    </div>
+
+    <div class="panel active report" id="reportPanel"></div>
+
+    <div class="panel" id="criticPanel"></div>
+
+    <div class="panel" id="rawPanel"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="stack-row">
+      <span class="stack-chip">Groq · Llama 3.3</span>
+      <span class="stack-chip">LangChain</span>
+      <span class="stack-chip">Tavily search</span>
+      <span class="stack-chip">BeautifulSoup4</span>
+      <span class="stack-chip">Streamlit backend</span>
+    </div>
+    <p>This page runs a local demo of the pipeline so the interface is interactive on its own. To show live results, point <code>runPipeline()</code> in the script at an API that wraps <code>pipeline.py</code> — for example a small Flask/FastAPI endpoint that calls <code>run_pipeline(topic)</code> and returns JSON with <code>report</code>, <code>critic</code>, and <code>raw</code> fields.</p>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const topicInput = document.getElementById('topicInput');
+  const runBtn = document.getElementById('runBtn');
+  const chipRow = document.getElementById('chipRow');
+  const logEl = document.getElementById('log');
+  const stages = Array.from(document.querySelectorAll('.stage'));
+  const results = document.getElementById('results');
+  const tabBtns = Array.from(document.querySelectorAll('.tab-btn'));
+  const panels = {
+    reportPanel: document.getElementById('reportPanel'),
+    criticPanel: document.getElementById('criticPanel'),
+    rawPanel: document.getElementById('rawPanel'),
+  };
+
+  let running = false;
+
+  chipRow.addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    topicInput.value = btn.dataset.topic;
+    topicInput.focus();
+  });
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      Object.values(panels).forEach(p => p.classList.remove('active'));
+      panels[btn.dataset.panel].classList.add('active');
+    });
+  });
+
+  topicInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') runPipeline();
+  });
+  runBtn.addEventListener('click', runPipeline);
+
+  function log(text, cls) {
+    const line = document.createElement('div');
+    if (cls) line.className = cls;
+    line.textContent = text;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function setStage(i, state) {
+    const s = stages[i];
+    s.classList.remove('active', 'done');
+    if (state) s.classList.add(state);
+    if (state === 'done') s.querySelector('.stage-dot').textContent = '✓';
+  }
+
+  function resetUI() {
+    stages.forEach((s, i) => {
+      s.classList.remove('active', 'done');
+      s.querySelector('.stage-dot').textContent = i + 1;
+    });
+    logEl.innerHTML = '';
+    logEl.classList.add('visible');
+    results.classList.remove('visible');
+  }
+
+  async function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  async function runPipeline() {
+    if (running) return;
+    const topic = (topicInput.value || '').trim();
+    if (!topic) { topicInput.focus(); topicInput.placeholder = 'Type a topic first…'; return; }
+
+    running = true;
+    runBtn.disabled = true;
+    runBtn.textContent = 'Running…';
+    resetUI();
+
+    const steps = [
+      { label: 'Search Agent', lines: [
+          `→ querying Tavily for "${topic}"`,
+          '  found 5 candidate sources',
+        ]},
+      { label: 'Reader Agent', lines: [
+          '→ selecting most relevant URL',
+          '  scraping page content…',
+        ]},
+      { label: 'Writer Chain', lines: [
+          '→ synthesising findings into a report',
+          '  drafting introduction, key findings, conclusion…',
+        ]},
+      { label: 'Critic Chain', lines: [
+          '→ reviewing the draft',
+          '  scoring strengths and gaps…',
+        ]},
+    ];
+
+    for (let i = 0; i < steps.length; i++) {
+      setStage(i, 'active');
+      log(`[${steps[i].label}]`, 'now');
+      for (const line of steps[i].lines) {
+        await wait(420);
+        log(line);
+      }
+      await wait(300);
+      log(`  done`, 'ok');
+      setStage(i, 'done');
+    }
+
+    renderReport(topic);
+    renderCritic(topic);
+    renderRaw(topic);
+
+    results.classList.add('visible');
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    running = false;
+    runBtn.disabled = false;
+    runBtn.textContent = 'Run research';
+  }
+
+  // ---- demo content generators (replace with real API data) ----
+
+  function renderReport(topic) {
+    const cap = topic.charAt(0).toUpperCase() + topic.slice(1);
+    panels.reportPanel.innerHTML = `
+      <div class="demo-note">Demo output — wire this panel to your backend for a real, sourced report.</div>
+      <h3>Introduction</h3>
+      <p>${cap} is a topic with active discussion across recent reporting and research. This report summarises the current landscape, the main points of debate, and where the evidence is strongest or thinnest.</p>
+      <h3>Key Findings</h3>
+      <ul>
+        <li>Coverage of "${topic}" spans technical, economic, and policy angles, with most recent sources published in the last 12 months.</li>
+        <li>There is general agreement on the core mechanics, but meaningful disagreement on long-term impact and scale.</li>
+        <li>Independent sources converge on a small set of recurring data points, which strengthens confidence in the shared claims.</li>
+      </ul>
+      <h3>Conclusion</h3>
+      <p>The available research gives a reasonably clear picture of "${topic}" today, though open questions remain around long-term effects — worth revisiting as new sources appear.</p>
+      <h3>Sources</h3>
+      <ul class="sources">
+        <li>https://example-journal.org/research/topic-overview</li>
+        <li>https://example-news.com/reports/analysis-2026</li>
+        <li>https://example-institute.org/publications/findings</li>
+      </ul>
+      <button class="download-btn" id="downloadBtn">Download report (.md)</button>
+    `;
+    document.getElementById('downloadBtn').addEventListener('click', () => downloadReport(topic));
+  }
+
+  function renderCritic(topic) {
+    const score = 7 + Math.floor(Math.random() * 2);
+    panels.criticPanel.innerHTML = `
+      <div class="demo-note">Demo output — replace with the real Critic Chain response.</div>
+      <div class="critic-top">
+        <div class="score-badge"><span class="num">${score}</span><span class="den">/ 10</span></div>
+        <p class="verdict">"A solid first pass on ${topic} — well-structured, but would benefit from more source diversity."</p>
+      </div>
+      <div class="critic-cols">
+        <div class="strengths">
+          <h4>Strengths</h4>
+          <ul>
+            <li>Clear structure with a logical flow between sections</li>
+            <li>Findings are backed by named sources</li>
+            <li>Conclusion ties back to the introduction</li>
+          </ul>
+        </div>
+        <div class="improve">
+          <h4>Areas to improve</h4>
+          <ul>
+            <li>Could cite a wider range of independent sources</li>
+            <li>Some claims would benefit from more recent data</li>
+            <li>Counterarguments are underexplored</li>
+          </ul>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderRaw(topic) {
+    const items = [
+      { url: 'https://example-journal.org/research/topic-overview', title: `An overview of ${topic}`, snippet: 'Summarises the current state of research and the main open questions in the field.' },
+      { url: 'https://example-news.com/reports/analysis-2026', title: `What the latest data says about ${topic}`, snippet: 'A reported piece drawing on interviews and recent published figures.' },
+      { url: 'https://example-institute.org/publications/findings', title: `Findings report: ${topic}`, snippet: 'A longer publication with methodology notes and a discussion of limitations.' },
+    ];
+    panels.rawPanel.innerHTML = `
+      <div class="demo-note">Demo output — the real pipeline returns actual Tavily results and scraped text here.</div>
+      ${items.map(it => `
+        <div class="raw-item">
+          <div class="rurl">${it.url}</div>
+          <h5>${it.title}</h5>
+          <p>${it.snippet}</p>
+        </div>
+      `).join('')}
+    `;
+  }
+
+  function downloadReport(topic) {
+    const text = `# Research Report: ${topic}\n\n## Introduction\n${topic} is a topic with active discussion across recent reporting and research.\n\n## Key Findings\n- Coverage spans technical, economic, and policy angles.\n- General agreement on core mechanics; disagreement on long-term impact.\n- Independent sources converge on a small set of recurring data points.\n\n## Conclusion\nThe available research gives a reasonably clear picture today, though open questions remain.\n\n## Sources\n- https://example-journal.org/research/topic-overview\n- https://example-news.com/reports/analysis-2026\n- https://example-institute.org/publications/findings\n`;
+    const blob = new Blob([text], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `report-${topic.slice(0, 30).replace(/\s+/g, '-').toLowerCase()}.md`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+})();
+</script>
+
+</body>
+</html>
