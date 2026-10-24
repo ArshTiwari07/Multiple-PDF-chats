@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marginalia — chat with your PDFs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root{
+    --ink: #12171F;
+    --ink-2: #1B222C;
+    --ink-line: #2A3341;
+    --paper: #F1ECDF;
+    --paper-dim: #E6DEC9;
+    --paper-line: #D6CBA9;
+    --sticky: #FFF3C4;
+    --sticky-line: #E7D488;
+    --text-ink: #EAE3CF;
+    --text-ink-dim: #9AA3AE;
+    --text-paper: #23201A;
+    --text-paper-dim: #6B6350;
+    --brass: #B9862F;
+    --brass-dark: #8C6420;
+    --teal: #3E7C74;
+    --danger: #A8452F;
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    font-family:'Inter', sans-serif;
+    background: var(--ink);
+    color: var(--text-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,h2,h3{ font-family:'Source Serif 4', serif; margin:0; font-weight:600; }
+  button{ font-family:inherit; }
+  input:focus-visible, button:focus-visible, .dropzone:focus-visible{
+    outline: 2px solid var(--brass);
+    outline-offset: 2px;
+  }
+
+  .app{
+    display:flex;
+    height:100vh;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* ---------- Sidebar / Library ---------- */
+  .library{
+    width: 320px;
+    flex-shrink:0;
+    background: var(--ink-2);
+    border-right: 1px solid var(--ink-line);
+    padding: 28px 22px;
+    display:flex;
+    flex-direction:column;
+    gap: 20px;
+    overflow-y:auto;
+  }
+  .brand{ margin-bottom: 4px; }
+  .brand-row{ display:flex; align-items:baseline; gap:10px; }
+  .brand-mark{
+    font-family:'Source Serif 4', serif;
+    font-style: italic;
+    font-size: 26px;
+    color: var(--brass);
+    line-height:1;
+  }
+  .brand h1{ font-size: 22px; letter-spacing: 0.2px; }
+  .tagline{
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--text-ink-dim);
+    font-style: italic;
+    font-family:'Source Serif 4', serif;
+  }
+
+  .dropzone{
+    border: 1.5px dashed #45506080;
+    border-radius: 3px;
+    padding: 22px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition: border-color .15s ease, background .15s ease;
+    background: #171D26;
+  }
+  .dropzone.drag{
+    border-color: var(--brass);
+    background: #1E2530;
+  }
+  .dropzone svg{ opacity:.7; margin-bottom:8px; }
+  .dropzone p{
+    margin:0;
+    font-size: 13px;
+    color: var(--text-ink-dim);
+    line-height:1.5;
+  }
+  .link-btn{
+    background:none; border:none; padding:0;
+    color: var(--brass);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor:pointer;
+    font-size: 13px;
+  }
+  .link-btn:hover{ color:#D4A24E; }
+
+  .doc-list{
+    list-style:none; margin:0; padding:0;
+    display:flex; flex-direction:column; gap:8px;
+    max-height: 260px;
+    overflow-y:auto;
+  }
+  .doc-chip{
+    display:flex; align-items:center; gap:10px;
+    background: #171D26;
+    border: 1px solid var(--ink-line);
+    border-left: 3px solid var(--brass-dark);
+    padding: 9px 10px;
+    border-radius: 2px;
+    font-size: 13px;
+  }
+  .doc-chip .name{
+    flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .doc-chip .pages{
+    color: var(--text-ink-dim);
+    font-size: 11px;
+    flex-shrink:0;
+  }
+  .doc-chip .remove{
+    background:none; border:none; color: var(--text-ink-dim);
+    cursor:pointer; font-size:15px; line-height:1; padding:2px 4px;
+    flex-shrink:0;
+  }
+  .doc-chip .remove:hover{ color: var(--danger); }
+  .doc-chip.reading .pages::after{ content:" · reading…"; }
+
+  .stamp-btn{
+    align-self:flex-start;
+    background: var(--paper);
+    color: var(--text-paper);
+    border: 2px solid var(--brass-dark);
+    border-radius: 999px;
+    padding: 10px 20px;
+    font-weight:600;
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    cursor:pointer;
+    transform: rotate(-1.5deg);
+    box-shadow: 2px 2px 0 var(--brass-dark);
+    transition: transform .1s ease, box-shadow .1s ease, opacity .15s ease;
+  }
+  .stamp-btn:hover:not(:disabled){
+    transform: rotate(-1.5deg) translate(-1px,-1px);
+    box-shadow: 3px 3px 0 var(--brass-dark);
+  }
+  .stamp-btn:active:not(:disabled){
+    transform: rotate(-1.5deg) translate(1px,1px);
+    box-shadow: 1px 1px 0 var(--brass-dark);
+  }
+  .stamp-btn:disabled{
+    opacity:.35; cursor:not-allowed; box-shadow:none; transform:none;
+  }
+
+  .library-stats{
+    margin-top:auto;
+    font-size: 12px;
+    color: var(--text-ink-dim);
+    border-top: 1px solid var(--ink-line);
+    padding-top: 14px;
+    line-height: 1.6;
+  }
+  .library-stats strong{ color: var(--text-ink); font-weight:600; }
+  .hint{
+    font-size: 12px;
+    color: var(--brass);
+    font-style: italic;
+    font-family:'Source Serif 4', serif;
+  }
+
+  /* ---------- Main / Reading room ---------- */
+  .reading-room{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    background: var(--paper);
+    color: var(--text-paper);
+    min-width:0;
+  }
+  .room-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 22px 32px 16px;
+    border-bottom: 1px solid var(--paper-line);
+    flex-shrink:0;
+  }
+  .room-header h2{ font-size: 20px; }
+  .status{
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-paper-dim);
+  }
+  .status-dot{
+    width:9px; height:9px; border-radius:50%;
+    background: #B9862F55;
+    flex-shrink:0;
+  }
+  .status-dot.ready{ background: var(--teal); }
+  .status-dot.busy{ background: var(--brass); animation: pulse 1.1s ease-in-out infinite; }
+  @media (prefers-reduced-motion: no-preference){
+    @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+  }
+
+  .chat-scroll{
+    flex:1;
+    overflow-y:auto;
+    padding: 28px 32px;
+    display:flex;
+    flex-direction:column;
+    gap: 18px;
+  }
+
+  .empty-state{
+    margin: auto;
+    text-align:center;
+    max-width: 360px;
+    color: var(--text-paper-dim);
+  }
+  .empty-state svg{ opacity:.55; margin-bottom: 14px; }
+  .empty-state p{
+    font-family:'Source Serif 4', serif;
+    font-style: italic;
+    font-size: 16px;
+    line-height:1.6;
+    margin:0;
+  }
+
+  .msg{
+    max-width: 66%;
+    padding: 13px 16px;
+    font-size: 14.5px;
+    line-height:1.6;
+  }
+  .msg.user{
+    align-self:flex-end;
+    background: var(--sticky);
+    border: 1px solid var(--sticky-line);
+    border-radius: 2px 2px 2px 14px;
+    box-shadow: 1px 2px 4px rgba(0,0,0,.12);
+    transform: rotate(0.6deg);
+  }
+  .msg.bot{
+    align-self:flex-start;
+    background: var(--paper-dim);
+    border-left: 3px solid var(--brass);
+    border-radius: 0 3px 3px 0;
+    position:relative;
+  }
+  .msg.bot::before{
+    content:"";
+    position:absolute; left:-3px; top:14px;
+    width:9px; height:9px; border-radius:50%;
+    background: var(--brass);
+    box-shadow: 0 0 0 2px var(--paper-dim);
+  }
+  .msg .sources{
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--paper-line);
+    display:flex; flex-wrap:wrap; gap:6px;
+  }
+  .source-tag{
+    font-size: 11px;
+    color: var(--text-paper-dim);
+    background: var(--paper);
+    border: 1px solid var(--paper-line);
+    border-radius: 999px;
+    padding: 2px 9px;
+  }
+  .msg.bot.thinking{ color: var(--text-paper-dim); font-style: italic; font-family:'Source Serif 4', serif; }
+  .msg.bot.error{ border-left-color: var(--danger); }
+
+  .dot-flash{ display:inline-flex; gap:3px; vertical-align:middle; margin-left:2px; }
+  .dot-flash span{
+    width:5px; height:5px; border-radius:50%; background: var(--text-paper-dim);
+    display:inline-block;
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .dot-flash span{ animation: bob 1s ease-in-out infinite; }
+    .dot-flash span:nth-child(2){ animation-delay:.15s; }
+    .dot-flash span:nth-child(3){ animation-delay:.3s; }
+    @keyframes bob{ 0%,100%{ transform:translateY(0); opacity:.4;} 50%{ transform:translateY(-3px); opacity:1; } }
+  }
+
+  .composer{
+    display:flex;
+    gap: 10px;
+    padding: 18px 32px 26px;
+    border-top: 1px solid var(--paper-line);
+    flex-shrink:0;
+  }
+  .composer input{
+    flex:1;
+    background: #fff;
+    border: 1px solid var(--paper-line);
+    border-radius: 3px;
+    padding: 12px 14px;
+    font-size: 14.5px;
+    color: var(--text-paper);
+    font-family: inherit;
+  }
+  .composer input::placeholder{ color: #A79C7E; }
+  .composer input:disabled{ background: var(--paper-dim); color: var(--text-paper-dim); }
+  .composer button{
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 3px;
+    padding: 0 22px;
+    font-weight: 600;
+    font-size: 13.5px;
+    letter-spacing: .3px;
+    cursor:pointer;
+    transition: background .15s ease, opacity .15s ease;
+  }
+  .composer button:hover:not(:disabled){ background:#232B36; }
+  .composer button:disabled{ opacity:.4; cursor:not-allowed; }
+
+  /* scrollbars */
+  .doc-list::-webkit-scrollbar, .chat-scroll::-webkit-scrollbar, .library::-webkit-scrollbar{ width:8px; }
+  .doc-list::-webkit-scrollbar-thumb{ background:#3A4553; border-radius:4px; }
+  .chat-scroll::-webkit-scrollbar-thumb{ background: var(--paper-line); border-radius:4px; }
+  .library::-webkit-scrollbar-thumb{ background:#2A3341; border-radius:4px; }
+
+  @media (max-width: 860px){
+    .app{ flex-direction:column; height:auto; min-height:100vh; }
+    .library{ width:100%; border-right:none; border-bottom:1px solid var(--ink-line); max-height:none; }
+    .doc-list{ max-height:160px; }
+    .reading-room{ min-height: 70vh; }
+    .msg{ max-width: 85%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <aside class="library">
+    <div class="brand">
+      <div class="brand-row">
+        <span class="brand-mark">§</span>
+        <h1>Marginalia</h1>
+      </div>
+      <p class="tagline">Read many, ask one.</p>
+    </div>
+
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload PDF files">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#B9862F" stroke-width="1.4" style="margin:0 auto;display:block;">
+        <path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <p>Drop PDFs here or <button class="link-btn" id="browseBtn" type="button">browse</button></p>
+      <input type="file" id="fileInput" accept="application/pdf" multiple hidden>
+    </div>
+
+    <ul class="doc-list" id="docList"></ul>
+
+    <div>
+      <button class="stamp-btn" id="processBtn" disabled>Process documents</button>
+    </div>
+
+    <div class="library-stats" id="libraryStats">
+      No documents yet.
+    </div>
+  </aside>
+
+  <main class="reading-room">
+    <header class="room-header">
+      <div>
+        <h2>Reading room</h2>
+        <p class="status" id="statusLine">Add a few PDFs on the left to begin.</p>
+      </div>
+      <div class="status-dot" id="statusDot"></div>
+    </header>
+
+    <div class="chat-scroll" id="chatScroll">
+      <div class="empty-state" id="emptyState">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#6B6350" stroke-width="1.3">
+          <path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/>
+          <path d="M15 4v5h5"/>
+          <path d="M7 13h8M7 16.5h5"/>
+        </svg>
+        <p>Nothing to discuss yet. Add a few PDFs, press&nbsp;Process,<br>then ask away.</p>
+      </div>
+    </div>
+
+    <form class="composer" id="composerForm">
+      <input type="text" id="questionInput" placeholder="Ask something about your documents…" autocomplete="off" disabled>
+      <button type="submit" id="sendBtn" disabled>Ask</button>
+    </form>
+  </main>
+
+</div>
+
+<script>
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
+
+const STOPWORDS = new Set("a an the and or but if of to in on for with as at by from is are was were be been being this that these those it its into about than then so not no do does did can could will would should you your i we our they their he she his her what which who whom".split(" "));
+
+const state = {
+  docs: [],          // { id, file, name, pageCount, chunks: [] }
+  chunks: [],         // flat: { text, docName, page }
+  processed: false,
+  history: []          // { role, content } — plain Q/A text, no retrieved context baked in
+};
+
+const el = {
+  dropzone: document.getElementById('dropzone'),
+  fileInput: document.getElementById('fileInput'),
+  browseBtn: document.getElementById('browseBtn'),
+  docList: document.getElementById('docList'),
+  processBtn: document.getElementById('processBtn'),
+  libraryStats: document.getElementById('libraryStats'),
+  statusLine: document.getElementById('statusLine'),
+  statusDot: document.getElementById('statusDot'),
+  chatScroll: document.getElementById('chatScroll'),
+  emptyState: document.getElementById('emptyState'),
+  composerForm: document.getElementById('composerForm'),
+  questionInput: document.getElementById('questionInput'),
+  sendBtn: document.getElementById('sendBtn'),
+};
+
+let docIdCounter = 0;
+
+// ---------- File intake ----------
+el.browseBtn.addEventListener('click', () => el.fileInput.click());
+el.dropzone.addEventListener('click', (e) => { if (e.target !== el.browseBtn) el.fileInput.click(); });
+el.dropzone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.fileInput.click(); } });
+
+['dragenter','dragover'].forEach(evt => el.dropzone.addEventListener(evt, (e) => {
+  e.preventDefault(); el.dropzone.classList.add('drag');
+}));
+['dragleave','drop'].forEach(evt => el.dropzone.addEventListener(evt, (e) => {
+  e.preventDefault(); el.dropzone.classList.remove('drag');
+}));
+el.dropzone.addEventListener('drop', (e) => {
+  const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+  addFiles(files);
+});
+el.fileInput.addEventListener('change', () => {
+  addFiles(Array.from(el.fileInput.files));
+  el.fileInput.value = '';
+});
+
+function addFiles(files){
+  files.forEach(file => {
+    state.docs.push({ id: ++docIdCounter, file, name: file.name, pageCount: null, chunks: [] });
+  });
+  if (files.length) invalidateIndex();
+  renderDocList();
+}
+
+function removeDoc(id){
+  state.docs = state.docs.filter(d => d.id !== id);
+  invalidateIndex();
+  renderDocList();
+}
+
+function invalidateIndex(){
+  state.processed = false;
+  state.chunks = [];
+  updateComposerState();
+  const hasDocs = state.docs.length > 0;
+  el.processBtn.disabled = !hasDocs;
+  el.statusLine.textContent = hasDocs
+    ? 'Documents ready — press Process to index them.'
+    : 'Add a few PDFs on the left to begin.';
+  el.statusDot.className = 'status-dot';
+}
+
+function renderDocList(){
+  el.docList.innerHTML = '';
+  state.docs.forEach(doc => {
+    const li = document.createElement('li');
+    li.className = 'doc-chip';
+    li.dataset.id = doc.id;
+    const pageLabel = doc.pageCount ? `${doc.pageCount}p` : '—';
+    li.innerHTML = `
+      <span class="name" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</span>
+      <span class="pages">${pageLabel}</span>
+      <button class="remove" aria-label="Remove ${escapeHtml(doc.name)}" type="button">×</button>
+    `;
+    li.querySelector('.remove').addEventListener('click', () => removeDoc(doc.id));
+    el.docList.appendChild(li);
+  });
+  el.libraryStats.textContent = state.docs.length
+    ? `${state.docs.length} document${state.docs.length === 1 ? '' : 's'} in the tray.`
+    : 'No documents yet.';
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- Processing (text extraction + chunking) ----------
+el.processBtn.addEventListener('click', processLibrary);
+
+async function processLibrary(){
+  if (!state.docs.length) return;
+  el.processBtn.disabled = true;
+  el.statusDot.className = 'status-dot busy';
+
+  for (const doc of state.docs) {
+    const chip = el.docList.querySelector(`li[data-id="${doc.id}"]`);
+    chip && chip.classList.add('reading');
+    try {
+      const buf = await doc.file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      doc.pageCount = pdf.numPages;
+      doc.chunks = [];
+      for (let p = 1; p <= pdf.numPages; p++) {
+        el.statusLine.textContent = `Reading ${doc.name} — page ${p} of ${pdf.numPages}…`;
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        const text = content.items.map(it => it.str).join(' ').replace(/\s+/g, ' ').trim();
+        chunkPageText(text, doc.name, p).forEach(c => doc.chunks.push(c));
+      }
+    } catch (err) {
+      console.error('Failed to read', doc.name, err);
+      doc.pageCount = doc.pageCount || 0;
+    }
+    chip && chip.classList.remove('reading');
+    renderDocList();
+  }
+
+  state.chunks = state.docs.flatMap(d => d.chunks);
+  state.processed = state.chunks.length > 0;
+  el.processBtn.disabled = false;
+  el.statusDot.className = state.processed ? 'status-dot ready' : 'status-dot';
+
+  const totalPages = state.docs.reduce((s, d) => s + (d.pageCount || 0), 0);
+  el.libraryStats.innerHTML = `<strong>${state.docs.length}</strong> document${state.docs.length===1?'':'s'} · <strong>${totalPages}</strong> pages · <strong>${state.chunks.length}</strong> passages indexed`;
+
+  if (state.processed) {
+    el.statusLine.textContent = 'Indexed and ready. Ask anything about your documents.';
+  } else {
+    el.statusLine.textContent = "Couldn't extract any text — try a different PDF.";
+  }
+  updateComposerState();
+}
+
+function chunkPageText(text, docName, page){
+  if (!text) return [];
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const chunks = [];
+  let buf = '';
+  for (const s of sentences) {
+    if ((buf + ' ' + s).length > 700 && buf) {
+      chunks.push({ text: buf.trim(), docName, page });
+      buf = s;
+    } else {
+      buf = buf ? buf + ' ' + s : s;
+    }
+  }
+  if (buf.trim()) chunks.push({ text: buf.trim(), docName, page });
+  return chunks;
+}
+
+// ---------- Retrieval ----------
+function tokenize(str){
+  return (str.toLowerCase().match(/[a-z0-9]+/g) || []).filter(w => w.length > 2 && !STOPWORDS.has(w));
+}
+
+function retrieve(query, topN = 5){
+  const qWords = tokenize(query);
+  if (!qWords.length || !state.chunks.length) return [];
+
+  const df = {};
+  qWords.forEach(w => { df[w] = 0; });
+  state.chunks.forEach(c => {
+    const words = new Set(tokenize(c.text));
+    qWords.forEach(w => { if (words.has(w)) df[w]++; });
+  });
+
+  const scored = state.chunks.map(c => {
+    const words = tokenize(c.text);
+    const freq = {};
+    words.forEach(w => freq[w] = (freq[w] || 0) + 1);
+    let score = 0;
+    qWords.forEach(w => {
+      if (freq[w]) {
+        const idf = Math.log((state.chunks.length + 1) / (df[w] + 1)) + 1;
+        score += freq[w] * idf;
+      }
+    });
+    return { chunk: c, score };
+  }).filter(x => x.score > 0);
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, topN).map(x => x.chunk);
+}
+
+// ---------- Chat UI ----------
+function updateComposerState(){
+  const ready = state.processed;
+  el.questionInput.disabled = !ready;
+  el.sendBtn.disabled = !ready;
+}
+
+function addMessage({ role, text, sources, id }){
+  el.emptyState.style.display = 'none';
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  if (id) div.id = id;
+  div.textContent = text;
+  if (sources && sources.length) {
+    const sw = document.createElement('div');
+    sw.className = 'sources';
+    sources.forEach(s => {
+      const tag = document.createElement('span');
+      tag.className = 'source-tag';
+      tag.textContent = `${s.docName} · p.${s.page}`;
+      sw.appendChild(tag);
+    });
+    div.appendChild(sw);
+  }
+  el.chatScroll.appendChild(div);
+  el.chatScroll.scrollTop = el.chatScroll.scrollHeight;
+  return div;
+}
+
+function addThinkingBubble(){
+  const div = document.createElement('div');
+  div.className = 'msg bot thinking';
+  div.id = 'thinking-bubble';
+  div.innerHTML = `Reading your documents<span class="dot-flash"><span></span><span></span><span></span></span>`;
+  el.chatScroll.appendChild(div);
+  el.chatScroll.scrollTop = el.chatScroll.scrollHeight;
+  return div;
+}
+
+// ---------- Ask ----------
+el.composerForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const question = el.questionInput.value.trim();
+  if (!question || !state.processed) return;
+
+  addMessage({ role: 'user', text: question });
+  el.questionInput.value = '';
+  el.questionInput.disabled = true;
+  el.sendBtn.disabled = true;
+
+  const thinking = addThinkingBubble();
+
+  const passages = retrieve(question, 5);
+  const contextBlock = passages.length
+    ? passages.map(p => `[${p.docName}, p.${p.page}]\n${p.text}`).join('\n\n')
+    : '(No closely matching passages were found in the indexed documents.)';
+
+  const systemPrompt = `You are a careful research assistant helping someone read a stack of PDFs. Answer the user's question using ONLY the excerpts provided below. Write in your own words, be concise and direct, and when you rely on a specific excerpt mention which document it came from in parentheses, like (Report.pdf, p.3). If the excerpts don't actually answer the question, say so honestly instead of guessing.
+
+Excerpts for this question:
+${contextBlock}`;
+
+  const recentHistory = state.history.slice(-8);
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: [...recentHistory, { role: "user", content: question }]
+      })
+    });
+    const data = await response.json();
+    const answer = (data.content || [])
+      .map(b => b.type === 'text' ? b.text : '')
+      .filter(Boolean)
+      .join('\n')
+      .trim() || "I didn't get a usable answer back — try rephrasing the question.";
+
+    thinking.remove();
+    const uniqueSources = [];
+    const seen = new Set();
+    passages.forEach(p => {
+      const key = p.docName + p.page;
+      if (!seen.has(key)) { seen.add(key); uniqueSources.push(p); }
+    });
+    addMessage({ role: 'bot', text: answer, sources: uniqueSources });
+
+    state.history.push({ role: 'user', content: question });
+    state.history.push({ role: 'assistant', content: answer });
+  } catch (err) {
+    console.error(err);
+    thinking.remove();
+    const errBubble = addMessage({ role: 'bot', text: "I couldn't reach the model just now — check your connection and try again." });
+    errBubble.classList.add('error');
+  } finally {
+    el.questionInput.disabled = false;
+    el.sendBtn.disabled = false;
+    el.questionInput.focus();
+  }
+});
+</script>
+</body>
+</html>
